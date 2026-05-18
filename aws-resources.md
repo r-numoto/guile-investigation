@@ -136,16 +136,18 @@ admovie-sonicmoov-elb01/02 → admovie-server01/02 → cdn.jswfplayer.jp/admovie
 
 ### 稼働中（8台）
 
-| インスタンスID | 名前 | タイプ | EIP | 用途 |
+| インスタンスID | 名前 | タイプ | EIP | 用途（SSH調査済み） |
 |---|---|---|---|---|
-| `i-07b0d607c001f22ec` | guile-interstitial | t2.micro | `52.198.184.69` | GUILE インタースティシャル広告配信（本番）。is-elb に紐づく |
-| `i-00502c06` | admin | m3.large | `54.199.222.231` | 管理画面サーバー |
-| `i-a8c2d20d` | collector1 | m3.medium | なし | 広告インプレッション・クリックデータ収集 |
-| `i-e0a8cc7f` | staging | t2.micro | なし | ステージング環境 |
-| `i-1d305eb8` | development | t2.micro | `52.69.217.85` | 開発環境 |
-| `i-bf6ed0b9` | NAT-PRX01 | t1.micro | `54.199.164.45` | PROTECTED サブネットの NAT（SPOF）。jswf スタック管理 |
-| `i-06223ad4c5b8d7b32` | admovie-server（1a） | c3.large | なし | admovie 動画広告配信（本番 1a）。admovie-elb01/02 および so-elb01/02 の振り先 |
-| `i-07de3e194ab6a27e5` | admovie-server（1c） | c3.large | なし | admovie 動画広告配信（本番 1c）。同上 |
+| `i-07b0d607c001f22ec` | guile-interstitial | t2.micro | `52.198.184.69` | インタースティシャル広告配信。nginx + php-fpm。`is.guile.jp` を提供。Amazon Linux 2 |
+| `i-00502c06` | admin | m3.large | `54.199.222.231` | 本番+ステージング バックエンドAPI。nginx + php-fpm + redis + memcached + fluentd。`api.guile.jp` / `stg.guile.jp` / `mypage.guile.jp` / `backend.jswfplayer.jp` を提供。admovie設定リロードのcron有。99GB `/data` ディスク付き（使用率2%） |
+| `i-a8c2d20d` | collector1 | m3.medium | なし | ログ収集専用。td-agent（Fluentd）+ python。nginxなし。126GB ディスク（使用率1%） |
+| `i-e0a8cc7f` | staging | t2.micro | なし | ステージングフロントエンド。nginx + td-agent + redis + python。`stg.guile.jp` を提供 |
+| `i-1d305eb8` | development | t2.micro | `52.69.217.85` | 開発環境。nginx + php-fpm + redis + memcached + fluentd。`dev.guile.jp` / `branch.guile.jp` / `test.guile.jp` を提供 |
+| `i-bf6ed0b9` | NAT-PRX01 | t1.micro | `54.199.164.45` | 踏み台 兼 PROTECTED サブネットの NAT（SPOF）。Amazon Linux 2013 |
+| `i-06223ad4c5b8d7b32` | admovie-server（1a） | c3.large | なし | admovie動画広告配信。nginx（`send-guile.sonicmoov.com` / `admovie.jswfplayer.jp`）+ td-agent。252GB ディスク（使用率1%） ⚠️ |
+| `i-07de3e194ab6a27e5` | admovie-server（1c） | c3.large | なし | admovie動画広告配信（1a と同構成）。252GB ディスク（使用率1%） ⚠️ |
+
+> ⚠️ admovie-server の 252GB EBS × 2本（合計 504GB）は使用率1%。ディスクが大幅に過剰確保されている可能性がある。
 
 ### 停止中（17台）
 
