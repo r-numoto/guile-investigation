@@ -4,6 +4,17 @@
 
 ---
 
+## ⚠️ 管理画面リポジトリが未確認
+
+広告の登録・編集・効果確認ができる **管理画面アプリケーションのソースコードは今回 clone した 20 件には含まれていない。**
+
+- EC2 インスタンス `admin`（m3.large）が管理画面サーバーと推測される
+- `guile-ops/roles/admin`・`Dockerfile.admin`・`playbook/admin.dev.yml` など、admin サーバーの**構築設定（インフラ側）は存在する**
+- `guile_js` の README に「Guile管理画面に登録するテンプレートデータ」という記述があり、管理画面は実在する
+- アプリ本体（Rails / PHP 等）のリポジトリが別途存在するはず → **Backlog Wiki や GitHub organization で確認が必要**
+
+---
+
 ## 概要
 
 GUILE 関連リポジトリは全 20 件。役割ごとに以下のカテゴリに分類できる。
