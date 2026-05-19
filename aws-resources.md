@@ -207,32 +207,59 @@ admovie-sonicmoov-elb01/02 → admovie-server01/02 → cdn.jswfplayer.jp/admovie
 
 ## ロードバランサー（ELB）
 
-全 9 台、すべて Classic ELB（約 $19.4/月/台）。
+全 9 台、すべて Classic ELB（約 $18/月/台、合計約 **$162/月**）。
 
-| 名前 | VPC | 振り先インスタンス | 用途 |
+### 一覧
+
+| 名前 | Route53 ドメイン | 振り先EC2 | SSL証明書 | 証明書状態 | 稼働状況 |
+|---|---|---|---|---|---|
+| `is-elb` | `is.guile.jp` | guile-interstitial（1a+1c） | `a6c1d892`（guile.jp系） | ✅ 有効 | 本番稼働中 |
+| `mypage-elb` | `mypage.guile.jp` | admin | `a6c1d892`（guile.jp系） | ✅ 有効 | 本番稼働中 |
+| `dev-elb` | `dev.guile.jp` | development | `a6c1d892`（guile.jp系） | ✅ 有効 | 開発用 |
+| `stg-is-elb` | `stg-is.guile.jp` | stg-guile-interstitial（**停止中**） | `a6c1d892`（guile.jp系） | ✅ 有効 | ⚠️ 振り先が停止中 |
+| `admovie-sonicmoov-elb01` | `send-guile.sonicmoov.com` | admovie-server 1a+1c | `18d2961b`（sonicmoov.com） | ✅ 有効 | 本番稼働中 |
+| `admovie-sonicmoov-elb02` | `send-guile.sonicmoov.com` | admovie-server 1a+1c | `18d2961b`（sonicmoov.com） | ✅ 有効 | elb01と**完全同一**（冗長） |
+| `admovie-elb01` | `admovie.jswfplayer.jp` | admovie-server 1a+1c | `0ce7eee5`（*.jswfplayer.jp） | ❌ **期限切れ** | ⚠️ HTTPS機能せず |
+| `admovie-elb02` | `admovie.jswfplayer.jp` | admovie-server 1a+1c | `0ce7eee5`（*.jswfplayer.jp） | ❌ **期限切れ** | ⚠️ HTTPS機能せず |
+| `staging-admovie-sonicmoov-elb` | （Route53未確認） | staging | `d671adfb` | 要確認 | STG admovie用 |
+
+### 構成図
+
+```
+admovie.jswfplayer.jp（jswf廃止予定ドメイン）
+  └─ Route53 A ─→ admovie-elb01 ──┐  証明書期限切れ ❌
+  └─ Route53 A ─→ admovie-elb02 ──┴──→ admovie-server 1a + 1c
+
+send-guile.sonicmoov.com（継続ドメイン）
+  └─ Route53 A ─→ admovie-sonicmoov-elb01 ──┐  証明書有効 ✅
+  └─ Route53 A ─→ admovie-sonicmoov-elb02 ──┴──→ admovie-server 1a + 1c
+
+is.guile.jp      ─→ is-elb     ─→ guile-interstitial
+mypage.guile.jp  ─→ mypage-elb ─→ admin
+dev.guile.jp     ─→ dev-elb    ─→ development
+stg-is.guile.jp  ─→ stg-is-elb ─→ stg-guile-interstitial（停止中 ⚠️）
+```
+
+### ELBの冗長構成について
+
+Route53 が同一ドメインに対して ELB を2本 A レコード登録しているのは DNS ラウンドロビン（負荷分散 + フェイルオーバー）のため。ただし **ELB はAWS内部でマルチAZ冗長化されているマネージドサービス**（SLA 99.99%）なので、ELBを1本にしても可用性は実質変わらない。
+
+### 週間リクエスト数（CloudWatch実測）
+
+| ELB | 週間リクエスト数 | 備考 |
+|---|---|---|
+| admovie-sonicmoov-elb01 | 約 12.4M | メイントラフィック |
+| admovie-sonicmoov-elb02 | 約 12.4M | elb01と同等（ラウンドロビン） |
+| admovie-elb01 | 約 8,500 | ほぼ無トラフィック |
+| admovie-elb02 | 約 24,500 | ほぼ無トラフィック |
+
+### コスト削減候補
+
+| 対応 | 削減本数 | 月額削減 | 条件・リスク |
 |---|---|---|---|
-| `is-elb` | SMV 本番 | guile-interstitial（1a+1c） | GUILE 本番 |
-| `stg-is-elb` | SMV_staging | stg-guile-interstitial | GUILE ステージング |
-| `admovie-elb01` | SMV 本番 | admovie-server 1a+1c | admovie（admovie.jp ドメイン向け推測） |
-| `admovie-elb02` | SMV 本番 | admovie-server 1a+1c | admovie（elb01 と**完全に同一構成**） |
-| `admovie-sonicmoov-elb01` | SMV 本番 | admovie-server 1a+1c | admovie（sonicmoov.com ドメイン向け推測） |
-| `admovie-sonicmoov-elb02` | SMV 本番 | admovie-server 1a+1c | admovie（so-elb01 と**完全に同一構成**） |
-| `staging-admovie-sonicmoov-elb` | SMV 本番 | staging | admovie ステージング |
-| `mypage-elb` | SMV 本番 | admin | マイページ |
-| `dev-elb` | SMV 本番 | development | 開発環境 |
-
-**admovie 系 ELB が4本ある理由**
-1. Classic ELB は SSL 証明書を1枚しか設定できないためドメインごとに ELB を分けた
-2. elb01/02 の2台構成は ELB の冗長化として誤って設計されたと推測（ALB であれば SNI で1台にまとめられる）
-
-**2026-05-18 実測トラフィック（CloudWatch）**
-
-| ELB | 週間リクエスト数 |
-|---|---|
-| admovie-sonicmoov-elb01 | 約 12.4M |
-| admovie-sonicmoov-elb02 | 約 12.4M |
-| admovie-elb01 | 約 8,500 |
-| admovie-elb02 | 約 24,500 |
+| `admovie-elb01/02` 削除 | 2本 | **$36/月** | jswf廃止時に実施。証明書も期限切れで実質機能していない |
+| `admovie-sonicmoov-elb02` 削除 | 1本 | **$18/月** | Route53のAレコード1件削除のみ。低リスク |
+| **合計** | **3本** | **$54/月** | |
 
 ---
 
